@@ -14,7 +14,7 @@
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{multirow}
-\usepackage{array,tabularx}
+\usepackage{array,tabularx,booktabs}
 \usepackage{enumitem}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage[colorlinks=true,allcolors=blue]{hyperref}
@@ -187,27 +187,20 @@ treated as if they answered the same question.
 \begin{table}[htbp]
 \centering
 \small
-\caption{Part~1 scoring-oriented summary. Runtime is the measured average
-per-epoch time where it was logged; all runs use CIFAR--10 training from
-scratch.}
+\caption{Part~1 scoring summary on CIFAR--10.}
 \label{tab:part1score}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.19\textwidth}|c|c|c|>{\raggedright\arraybackslash}X}
-\hline
-Model / setting & Params & Time / epoch & Best acc (\%) & Role in the report \\
-\hline
-Raw-tensor ConvNet & 1.42M & \manualNetEpochTime{}s & \manualNetAcc{} &
-manual convolution, pooling, linear layers, activation, and loss \\
-Configurable ConvNet & 5.56M--20.1M & -- & 90.91--\convAcc{} &
-required components and controlled ablation platform \\
-CIFAR ResNet--18 & \baseParams{} & \bestEpochTime{}s & \baseAcc{} &
-CIFAR stem, residual baseline, no ImageNet pretraining \\
-ResNet--18 + manual SGD & \baseParams{} & \manualEpochTime{}s & \manualAcc{} &
-hand-written SGD with Nesterov momentum and weight decay \\
-WRN-28-10 + strong recipe & \bestParams{} & $\approx$\wrnEpochTime{}s &
-\bestAcc{} & accuracy ceiling with AutoAugment, Cutout, Mixup/CutMix, EMA,
-and TTA \\
-\hline
-\end{tabularx}
+\begin{tabular}{lccc}
+\toprule
+Run & Params & s/ep & Acc. (\%) \\
+\midrule
+Raw ConvNet & 1.42M & \manualNetEpochTime{} & \manualNetAcc{} \\
+Ablation ConvNet & 5.56M--20.1M & -- & 90.91--\convAcc{} \\
+ResNet--18 & \baseParams{} & \bestEpochTime{} & \baseAcc{} \\
+Manual-SGD ResNet & \baseParams{} & \manualEpochTime{} & \manualAcc{} \\
+WRN strong & \bestParams{} & $\approx$\wrnEpochTime{} &
+\bestAcc{} \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 \subsection{Required Components: A Configurable ConvNet}
@@ -273,31 +266,29 @@ training budget is fixed.
 report parameter count; training variants keep the baseline architecture and
 vary only the recipe.}
 \label{tab:optional}
-\begin{tabular}{c|p{0.31\textwidth}|p{0.29\textwidth}|c}
-\hline
-Block & Configuration & Main setting & Best acc (\%) \\
-\hline
-\multirow{9}{*}{Architecture}
-& Baseline BN ConvNet & 5.56M params & 91.27 \\
-& No normalization & 5.56M params & 90.05 \\
-& GroupNorm & 5.56M params & 89.87 \\
-& Average pooling & 5.56M params & 90.89 \\
-& Deeper stages & 8.69M params & \textbf{93.08} \\
-& Narrow classifier & 5.03M params & 91.07 \\
-& Wide classifier & 6.61M params & 91.08 \\
-& Conv dropout & 5.56M params & 90.98 \\
-& BN + residual + dropout & 5.73M params & 91.50 \\
-\hline
-\multirow{8}{*}{Training}
-& Standard crop+flip & baseline augmentation + cosine LR & 91.27 \\
-& No augmentation & normalization only & 86.46 \\
-& Cutout & crop+flip + random erasing & 91.44 \\
-& No weight decay & $L_2$ disabled & 89.66 \\
-& Label smoothing & smoothing $0.1$ & \textbf{91.74} \\
-& Step LR & multistep decay & 90.86 \\
-& Constant LR & no decay & 85.60 \\
-& Combined regularization & cutout + dropout + smoothing & 91.60 \\
-\hline
+\begin{tabular}{llcc}
+\toprule
+Block & Variant & Size / setting & Acc. (\%) \\
+\midrule
+Arch. & Baseline BN & 5.56M & 91.27 \\
+Arch. & No norm. & 5.56M & 90.05 \\
+Arch. & GroupNorm & 5.56M & 89.87 \\
+Arch. & AvgPool & 5.56M & 90.89 \\
+Arch. & Deeper & 8.69M & \textbf{93.08} \\
+Arch. & Narrow cls. & 5.03M & 91.07 \\
+Arch. & Wide cls. & 6.61M & 91.08 \\
+Arch. & Conv dropout & 5.56M & 90.98 \\
+Arch. & BN+Res+Drop & 5.73M & 91.50 \\
+\addlinespace
+Train & Crop+flip & cosine LR & 91.27 \\
+Train & No aug. & -- & 86.46 \\
+Train & Cutout & erase & 91.44 \\
+Train & No WD & -- & 89.66 \\
+Train & Label smooth & 0.1 & \textbf{91.74} \\
+Train & Step LR & -- & 90.86 \\
+Train & Const. LR & -- & 85.60 \\
+Train & Combined & Cutout+Drop+LS & 91.60 \\
+\bottomrule
 \end{tabular}
 \end{table}
 
@@ -354,15 +345,15 @@ quadrupling the parameters from $5.6$M to $20.1$M buys only $+1.1$ points.
 \centering
 \caption{Width ablation on the ConvNet: best test accuracy vs.\ parameter count.}
 \label{tab:width}
-\begin{tabular}{c|c|c}
-\hline
+\begin{tabular}{ccc}
+\toprule
 Width & Params & Best acc (\%) \\
-\hline
+\midrule
 0.25 & 0.55M & 87.46 \\
 0.5  & 1.66M & 89.36 \\
 1.0  & 5.56M & 90.91 \\
 2.0  & 20.1M & \textbf{92.04} \\
-\hline
+\bottomrule
 \end{tabular}
 \end{table}
 
@@ -434,14 +425,14 @@ Trained on the full ResNet--18, our hand-written SGD reaches
 \caption{Hand-written vs.\ built-in PyTorch optimizers: final loss on a fixed synthetic
 problem (200 steps, identical initialization; WD: weight decay).}
 \label{tab:optval}
-\begin{tabular}{c|c|c|c}
-\hline
+\begin{tabular}{lccc}
+\toprule
 Update rule & Hand-written loss & Built-in loss & Largest gap \\
-\hline
+\midrule
 SGD (Nesterov + WD) & $4.844\times10^{-3}$ & $4.844\times10^{-3}$ & \textbf{0} \\
 Adam                & $1.437\times10^{-2}$ & $1.437\times10^{-2}$ & $7.2\times10^{-7}$ \\
 AdamW (decoupled WD) & $1.435\times10^{-2}$ & $1.435\times10^{-2}$ & $7.2\times10^{-7}$ \\
-\hline
+\bottomrule
 \end{tabular}
 \end{table}
 
@@ -494,19 +485,18 @@ model.
 
 \begin{table}[htbp]
 \centering
-\caption{Accuracy-push sweep. ``best'' is the higher of the raw and EMA model;
-``TTA'' adds horizontal-flip test-time augmentation.}
+\caption{Accuracy-push sweep. CO denotes Cutout; CM denotes CutMix.}
 \label{tab:strong}
-\begin{tabular}{c|c|c|c|c}
-\hline
+\begin{tabular}{llccc}
+\toprule
 Model & Recipe & Epochs & Best (\%) & + TTA (\%) \\
-\hline
-ResNet-18      & AutoAug+Cutout+Mixup        & 300 & 96.92 & 96.96 \\
-WRN-28-10      & AutoAug+Cutout              & 200 & 97.30 & 97.38 \\
-WRN-28-10      & AutoAug+Cutout              & 300 & 97.43 & 97.54 \\
-WRN-28-10      & AutoAug+Cutout+Mixup/CutMix & 200 & 97.56 & 97.73 \\
-\textbf{WRN-28-10} & \textbf{AutoAug+Cutout+Mixup/CutMix} & \textbf{300} & \textbf{98.02} & 98.00 \\
-\hline
+\midrule
+ResNet-18      & AA+CO+Mix    & 300 & 96.92 & 96.96 \\
+WRN-28-10      & AA+CO        & 200 & 97.30 & 97.38 \\
+WRN-28-10      & AA+CO        & 300 & 97.43 & 97.54 \\
+WRN-28-10      & AA+CO+Mix/CM & 200 & 97.56 & 97.73 \\
+\textbf{WRN-28-10} & \textbf{AA+CO+Mix/CM} & \textbf{300} & \textbf{98.02} & 98.00 \\
+\bottomrule
 \end{tabular}
 \end{table}
 
@@ -589,27 +579,15 @@ mapping from the assignment requirements to our implementation and figures.
 \small
 \caption{Part~2 requirement-to-evidence summary.}
 \label{tab:bnscore}
-\begin{tabularx}{\textwidth}{
->{\raggedright\arraybackslash}p{0.20\textwidth}|
->{\raggedright\arraybackslash}p{0.30\textwidth}|
->{\raggedright\arraybackslash}X}
-\hline
-Requirement & Evidence in this report & Main conclusion \\
-\hline
-VGG--A vs.\ VGG--A+BN & BN is inserted after every convolution and before
-ReLU; both models are trained under the same CIFAR--10 loader and Adam setup &
-BN raises best validation accuracy from \bnStdAcc\% to \bnBnAcc\% and lowers
-the training-loss curve \\
-Learning-rate behavior & Four learning rates are swept:
-$2\times10^{-3}$, $10^{-3}$, $5\times10^{-4}$, and $10^{-4}$ &
-BN is best at $10^{-3}$ and remains competitive at $5\times10^{-4}$ and
-$2\times10^{-3}$, while the plain VGG--A is less stable across the sweep \\
-Optimization mechanism & Loss-band and gradient-predictiveness diagnostics in
-Figure~\ref{fig:bnsmooth} & BN produces a tighter loss band and a smaller
-90th-percentile maximum gradient change (\bnGradBn{} vs.\ \bnGradStd{}),
-supporting the smoother-landscape interpretation \\
-\hline
-\end{tabularx}
+\begin{tabular}{lll}
+\toprule
+Aspect & Evidence & Key result \\
+\midrule
+VGG comparison & Conv+BN+ReLU & \bnStdAcc{} $\rightarrow$ \bnBnAcc{} \\
+LR sweep & 4 learning rates & best at $10^{-3}$ \\
+Mechanism & loss / gradient bands & p90: \bnGradStd{} $\rightarrow$ \bnGradBn{} \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 \subsection{The Batch Normalization Algorithm}
@@ -667,15 +645,15 @@ validation accuracy (right). BN converges faster and higher.}
 \centering
 \caption{Learning-rate sweep for VGG--A and VGG--A+BN (20 epochs, Adam).}
 \label{tab:bnlr}
-\begin{tabular}{c|c|c|c}
-\hline
+\begin{tabular}{cccc}
+\toprule
 Learning rate & VGG--A best val acc (\%) & VGG--A+BN best val acc (\%) & BN gain \\
-\hline
+\midrule
 $2\times10^{-3}$ & 74.19 & 83.02 & +8.83 \\
 $10^{-3}$        & 77.97 & \textbf{83.04} & +5.07 \\
 $5\times10^{-4}$ & \textbf{78.64} & 82.39 & +3.75 \\
 $10^{-4}$        & 76.36 & 75.58 & -0.78 \\
-\hline
+\bottomrule
 \end{tabular}
 \end{table}
 
@@ -766,30 +744,17 @@ rather than relying on a single trick.
 \small
 \caption{Multi-angle interpretation of the experimental evidence.}
 \label{tab:discussionangles}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.20\textwidth}|>{\raggedright\arraybackslash}p{0.31\textwidth}|X}
-\hline
-Angle & Evidence & Interpretation \\
-\hline
-Accuracy ceiling & WRN-28-10 reaches \bestAcc\% with the strongest recipe &
-Large residual capacity plus modern augmentation gives the highest score. \\
-Efficiency & ResNet--18 reaches \baseAcc\% with \baseParams{} parameters,
-whereas WRN-28-10 uses \bestParams{} parameters & The final $2.68$-point gain
-over ResNet--18 costs a much larger model and longer training schedule. \\
-Generalization & No augmentation gives $100\%$ train accuracy but only
-$86.46\%$ test accuracy & More training accuracy is not automatically better;
-regularization and augmentation control memorization. \\
-Architecture attribution & Deeper stages reach $93.08\%$, beating wider
-classifier variants and the combined BN+Residual+Dropout ConvNet & Extra
-convolutional depth is the strongest optional architecture change in this
-controlled ConvNet setting. \\
-Optimization mechanism & VGG--A+BN improves from \bnStdAcc\% to \bnBnAcc\% and
-reduces p90 gradient change from \bnGradStd{} to \bnGradBn{} & BN's benefit is
-mostly explained by smoother, more predictable first-order updates, not by a
-large increase in parameter count. \\
-Implementation credibility & Manual optimizers match PyTorch updates and the
-raw-tensor ConvNet trains to \manualNetAcc\% & The report contains independent
-implementation evidence rather than only black-box library calls. \\
-\hline
+\begin{tabularx}{\textwidth}{l>{\raggedright\arraybackslash}p{0.31\textwidth}X}
+\toprule
+Angle & Signal & Takeaway \\
+\midrule
+Accuracy & WRN \bestAcc\% & highest score \\
+Efficiency & \baseAcc{} / \bestAcc\% & accuracy costs capacity \\
+Generalization & train/test $100/86.46$ & memorization risk \\
+Architecture & deeper $93.08\%$ & depth matters most \\
+Optimization & p90 \bnGradStd{} $\rightarrow$ \bnGradBn{} & smoother updates \\
+Implementation & SGD exact; raw \manualNetAcc\% & credible code \\
+\bottomrule
 \end{tabularx}
 \end{table}
 
