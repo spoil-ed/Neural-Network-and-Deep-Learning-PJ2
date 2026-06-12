@@ -1,0 +1,51 @@
+HEADLINE ResNet-18: best_test_acc=95.34%  params=11,173,962  avg_epoch=9.7s
+ManualSGD ResNet-18: best_test_acc=95.34%
+--- width ---
+  width x0.25              params=   550,602  best=87.46%  final_train=92.78%
+  width x0.5               params= 1,657,738  best=89.36%  final_train=97.72%
+  width x1.0               params= 5,558,538  best=90.91%  final_train=99.54%
+  width x2.0               params=20,106,250  best=92.04%  final_train=99.90%
+--- activation ---
+  act=relu                 params= 5,558,538  best=90.91%  final_train=99.54%
+  act=leaky_relu           params= 5,558,538  best=91.34%  final_train=99.38%
+  act=gelu                 params= 5,558,538  best=91.08%  final_train=99.30%
+  act=tanh                 params= 5,558,538  best=88.32%  final_train=94.41%
+  act=sigmoid              params= 5,558,538  best=84.39%  final_train=86.40%
+--- loss ---
+  CE (no wd)               params= 5,558,538  best=89.81%  final_train=98.91%
+  CE + L2 (wd=5e-4)        params= 5,558,538  best=90.91%  final_train=99.54%
+  CE + label-smooth 0.1    params= 5,558,538  best=91.51%  final_train=99.67%
+  CE + dropout 0.5         params= 5,558,538  best=90.71%  final_train=98.68%
+  MSE on one-hot           params= 5,558,538  best=90.02%  final_train=96.98%
+--- optimizer ---
+  SGD+nesterov             params= 5,558,538  best=90.91%  final_train=99.54%
+  Adam                     params= 5,558,538  best=90.44%  final_train=98.43%
+  AdamW                    params= 5,558,538  best=90.40%  final_train=99.41%
+  RMSprop                  params= 5,558,538  best=79.64%  final_train=80.33%
+  ManualSGD (5c)           params= 5,558,538  best=90.91%  final_train=99.54%
+  ManualAdam (5c)          params= 5,558,538  best=90.11%  final_train=99.17%
+--- optional ---
+  None (plain)             params= 5,555,082  best=90.48%  final_train=98.99%
+  + BatchNorm              params= 5,558,538  best=90.91%  final_train=99.54%
+  + Dropout                params= 5,555,082  best=90.03%  final_train=97.91%
+  + Residual               params= 5,728,266  best=89.87%  final_train=98.56%
+  + All three              params= 5,733,642  best=91.48%  final_train=98.56%
+--- optional_arch ---
+  Baseline BN ConvNet      params= 5,558,538  best=91.27%  final_train=99.57%
+  No normalization         params= 5,555,082  best=90.05%  final_train=98.94%
+  GroupNorm                params= 5,558,538  best=89.87%  final_train=98.87%
+  Average pooling          params= 5,558,538  best=90.89%  final_train=99.77%
+  Deeper stages            params= 8,694,858  best=93.08%  final_train=99.81%
+  Narrow classifier        params= 5,031,434  best=91.07%  final_train=99.52%
+  Wide classifier          params= 6,612,746  best=91.08%  final_train=99.56%
+  Conv dropout             params= 5,558,538  best=90.98%  final_train=95.49%
+  BN + Residual + Dropout  params= 5,733,642  best=91.50%  final_train=98.48%
+--- optional_training ---
+  Standard crop+flip       params= 5,558,538  best=91.27%  final_train=99.57%
+  No augmentation          params= 5,558,538  best=86.46%  final_train=100.00%
+  Cutout                   params= 5,558,538  best=91.44%  final_train=96.89%
+  No weight decay          params= 5,558,538  best=89.66%  final_train=98.96%
+  Label smoothing          params= 5,558,538  best=91.74%  final_train=99.64%
+  Step LR                  params= 5,558,538  best=90.86%  final_train=98.23%
+  Constant LR              params= 5,558,538  best=85.60%  final_train=90.55%
+  Combined regularization  params= 5,558,538  best=91.60%  final_train=96.15%

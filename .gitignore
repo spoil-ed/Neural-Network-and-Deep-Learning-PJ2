@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.agents/
+.codex/
+.DS_Store
+
+# Local datasets and checkpoints
+/data/
+codes/VGG_BatchNorm/data/cifar-10-python.tar.gz
+codes/VGG_BatchNorm/data/cifar-10-batches-py/
+results/models/
+*.pth
+
+# Generated scratch artifacts
+tmp/
+
+# LaTeX build intermediates
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.fdb_latexmk
+report/*.fls
+report/*.log
+report/*.out
+report/*.synctex.gz
