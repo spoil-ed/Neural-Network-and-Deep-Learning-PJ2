@@ -1,142 +1,142 @@
-# Project-2 — Neural Network and Deep Learning
+# Project 2 - Neural Network and Deep Learning
 
-CIFAR-10 image classification and a study of Batch Normalization.
+CIFAR-10 分类与 Batch Normalization 分析项目。
 
-**Author:** Yu Xinglei (Student ID: 23300290012)
-**Report:** [`report/report.pdf`](report/report.pdf)
-**Trained weights & dataset:** `[your Google-Drive / Netdisk link]`
+**作者**：Yu Xinglei，Student ID: 23300290012  
+**报告**：[report/report.pdf](report/report.pdf)  
+**数据集与权重**：https://www.modelscope.cn/models/imspoiled/Neural-Network-and-Deep-Learning-PJ2-Checkpoin
 
----
+## 结果
 
-## Results at a glance
+| 任务 | 模型 / 设置 | 最佳结果 |
+|---|---|---:|
+| Part 1 | ResNet-18 baseline | 95.34% |
+| Part 1 | WideResNet-28-10 + strong recipe | 98.02% |
+| Part 2 | VGG-A | 78.6% |
+| Part 2 | VGG-A + BatchNorm | 83.0% |
 
-### Part 1 — CIFAR-10 classification
-| Model | Recipe | Params | Test acc | Error |
-|---|---|---:|---:|---:|
-| ResNet-18 | crop+flip, 150 ep (baseline) | 11.2M | 95.34% | 4.66% |
-| **WideResNet-28-10** | **AutoAug+Cutout+Mixup/CutMix+EMA+TTA, 300 ep** | **36.5M** | **98.02%** | **1.98%** |
+## 目录
 
-Controlled ablations on a configurable ConvNet:
-- **Width** (#filters): 0.25×→87.5%, 0.5×→89.4%, 1.0×→90.9%, 2.0×→92.0% (diminishing returns).
-- **Activation**: LeakyReLU 91.3% ≳ GELU 91.1% ≈ ReLU 90.9% ≫ Tanh 88.3% ≫ Sigmoid 84.4%.
-- **Loss/regularization**: label-smoothing 91.5% > L2 90.9% > dropout 90.7% > MSE 90.0% > plain CE 89.8%.
-- **Optimizer**: SGD 90.9% **=** hand-written `ManualSGD` 90.9% (exact); Adam 90.4%, AdamW 90.4%, `ManualAdam` 90.1%, RMSprop 79.6%.
-- **Optional choices** on the ConvNet: architecture options show deeper stages
-  perform best (**93.08%**), with BN+Residual+Dropout at 91.50%; training
-  options show label smoothing best (**91.74%**), followed by combined
-  regularization 91.60% and Cutout 91.44%, while no augmentation and constant
-  LR underperform.
-
-The two **from-scratch optimizers** (`ManualSGD`, `ManualAdam`) reproduce `torch.optim`
-to `<1e-6` (SGD bit-exact) and train the full ResNet to the identical 95.34%.
-A further ConvNet built **purely from raw tensor operations** (im2col conv,
-unfold pooling, manual ReLU/cross-entropy; task 5b) reaches **85.51%** in 40 epochs.
-
-### Part 2 — Batch Normalization
-- VGG-A **78.6%** vs. VGG-A + BatchNorm **83.0%** best validation accuracy.
-- BN gives a tighter/lower **loss landscape** (variation over learning rates) and more
-  **predictive gradients** (p90 max gradient change 16.6 → 10.3), confirming it smooths
-  the optimization landscape (Santurkar et al., 2018).
-
----
-
-## Repository structure
-
-```
-PJ2/
-├── report/
-│   ├── report.tex            # full LaTeX report
-│   ├── references.bib
-│   └── report.pdf            # compiled report (11 pages)
-├── codes/
-│   ├── part1_cifar/          # Part 1 — CIFAR-10 classification
-│   │   ├── data.py           #   loaders + standard / strong augmentation
-│   │   ├── models.py         #   ConvNet, ResNet-18, WideResNet-28-10
-│   │   ├── optimizers.py     #   hand-written ManualSGD / ManualAdam
-│   │   ├── engine.py         #   training / evaluation loop
-│   │   ├── manual_net.py     #   task 5(b): ConvNet from raw tensor ops only
-│   │   ├── run_best.py       #   ResNet-18 baseline trainer
-│   │   ├── run_ablations.py  #   width / activation / loss / optimizer ablations
-│   │   ├── run_strong.py     #   accuracy-push trainer (AutoAug+Mixup+EMA+TTA)
-│   │   ├── visualize.py      #   filters, confusion, t-SNE, loss surface
-│   │   ├── plot_part1.py     #   training curves + ablation figures
-│   │   ├── plot_strong.py    #   accuracy-push figures
-│   │   └── test_optimizers.py#   validates ManualSGD/ManualAdam vs torch.optim
-│   └── VGG_BatchNorm/        # Part 2 — Batch Normalization
-│       ├── models/vgg.py     #   VGG_A and VGG_A_BatchNorm
-│       ├── data/loaders.py
-│       ├── VGG_Loss_Landscape.py   # train VGG-A ± BN, loss landscape
-│       └── bn_gradient_analysis.py # gradient predictiveness / β-smoothness
-├── results/
-│   ├── figures/              # all report figures (.png)
-│   ├── logs/                 # per-run metrics (.json) + console logs (.out)
-│   └── models/               # trained weights (.pth)  ← upload these to a drive
-└── data/                     # CIFAR-10 (auto-downloaded on first run)
+```text
+codes/
+  part1_cifar/        # CIFAR-10 分类、消融、可视化
+  VGG_BatchNorm/      # VGG-A 与 BatchNorm 分析
+results/
+  logs/               # 训练日志
+  figures/            # 实验图表
+  models/             # .pth 权重，需下载或训练生成
+data/                 # CIFAR-10，首次运行自动下载
+report/report.pdf     # 实验报告
 ```
 
----
-
-## Setup
+## 环境
 
 ```bash
-# Python 3.10+, a CUDA GPU recommended.
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
 pip install torch torchvision numpy matplotlib scikit-learn tqdm
 ```
 
-CIFAR-10 downloads automatically to `./data` on the first run (≈170 MB).
+推荐使用 CUDA GPU。指定 GPU：
 
----
-
-## Reproduce
-
-All commands are run from the repository root.
-
-### Part 1
 ```bash
-# Baseline ResNet-18 (95.34%)
-python codes/part1_cifar/run_best.py --model resnet18 --optimizer sgd       --epochs 150 --tag best
-# Same model trained with the hand-written optimizer (task 5c)
-python codes/part1_cifar/run_best.py --model resnet18 --optimizer manual_sgd --epochs 150 --tag manual
-
-# Ablations (tasks 4 & 5a)
-for g in width activation loss optimizer optional optional_arch optional_training; do
-  python codes/part1_cifar/run_ablations.py --group $g --epochs 40
-done
-
-# Accuracy push — WideResNet-28-10 (98.02%)
-python codes/part1_cifar/run_strong.py --model wrn28_10 --mix 1 --epochs 300 --tag wrn_mix300
-
-# Hand-written optimizer validation, and figures
-python codes/part1_cifar/test_optimizers.py
-
-# Raw-tensor ConvNet (task 5b): self-test, then 40-epoch training (85.51%)
-python codes/part1_cifar/manual_net.py --selftest
-python codes/part1_cifar/manual_net.py --epochs 40
-python codes/part1_cifar/visualize.py --model wrn28_10 --ckpt wrn_mix300
-python codes/part1_cifar/plot_part1.py
-python codes/part1_cifar/plot_strong.py
+CUDA_VISIBLE_DEVICES=0 python ...
 ```
 
-### Part 2
+## 数据集
+
+CIFAR-10 会由脚本自动下载到 `data/`：
+
 ```bash
-# VGG-A vs VGG-A+BN, loss landscape over learning rates [1e-3, 2e-3, 1e-4, 5e-4]
+python - <<'PY'
+from codes.part1_cifar.data import get_loaders
+get_loaders(batch_size=128, num_workers=0)
+print("CIFAR-10 ready")
+PY
+```
+
+若手动下载，请保证目录为：
+
+```text
+data/cifar-10-batches-py/
+```
+
+## 权重
+
+下载预训练权重后放入：
+
+```text
+results/models/
+```
+
+常用文件名：
+
+```text
+best.pth
+manual.pth
+wrn_mix300.pth
+VGG_A.pth
+VGG_A_BatchNorm.pth
+```
+
+## 训练
+
+所有命令在仓库根目录运行。
+
+```bash
+# ResNet-18 baseline
+python codes/part1_cifar/run_best.py --model resnet18 --optimizer sgd --epochs 150 --tag best
+
+# 手写 SGD 对照
+python codes/part1_cifar/run_best.py --model resnet18 --optimizer manual_sgd --epochs 150 --tag manual
+
+# 消融实验
+for group in width activation loss optimizer optional optional_arch optional_training; do
+  python codes/part1_cifar/run_ablations.py --group "$group" --epochs 40
+done
+
+# WideResNet-28-10 strong recipe
+python codes/part1_cifar/run_strong.py --model wrn28_10 --mix 1 --epochs 300 --tag wrn_mix300
+
+# 手写优化器验证
+python codes/part1_cifar/test_optimizers.py
+
+# 纯张量 ConvNet
+python codes/part1_cifar/manual_net.py --selftest
+python codes/part1_cifar/manual_net.py --epochs 40
+
+# VGG-A vs VGG-A + BN
 python codes/VGG_BatchNorm/VGG_Loss_Landscape.py --epochs 20
-# Gradient predictiveness / effective beta-smoothness
 python codes/VGG_BatchNorm/bn_gradient_analysis.py --epochs 3
 ```
 
-Pin a GPU with `CUDA_VISIBLE_DEVICES=k` before any command.
+## 评估与画图
 
-### Build the report
+训练脚本会自动在 test set 上评估并保存最佳权重。已有权重时可直接生成图表：
+
 ```bash
-cd report && latexmk -pdf report.tex
+python codes/part1_cifar/visualize.py --model resnet18 --ckpt best
+python codes/part1_cifar/visualize.py --model wrn28_10 --ckpt wrn_mix300
+
+python codes/part1_cifar/plot_part1.py
+python codes/part1_cifar/plot_strong.py
+
+python codes/VGG_BatchNorm/VGG_Loss_Landscape.py --replot
+python codes/VGG_BatchNorm/bn_gradient_analysis.py --replot
 ```
 
----
+## 输出
 
-## Notes
-- Training uses bfloat16 automatic mixed precision; experiments were run on a single
-  NVIDIA H100 (ResNet-18 ≈ 9.7 s/epoch, WRN-28-10 ≈ 15 s/epoch).
-- Trained checkpoints live in `results/models/` (`best.pth`, `manual.pth`,
-  `wrn_mix300.pth`, `VGG_A.pth`, `VGG_A_BatchNorm.pth`). Upload these to a drive and
-  paste the link above and in the report.
+```text
+results/models/*.pth       # 模型权重
+results/logs/*.json        # 训练曲线与指标
+results/figures/*.png/pdf  # 报告图表
+```
+
+## 报告
+
+```bash
+cd report
+latexmk -pdf report.tex
+```

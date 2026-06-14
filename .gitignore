@@ -10,7 +10,8 @@ __pycache__/
 /data/
 codes/VGG_BatchNorm/data/cifar-10-python.tar.gz
 codes/VGG_BatchNorm/data/cifar-10-batches-py/
-results/models/
+results/models/*
+!results/models/README.md
 *.pth
 
 # Generated scratch artifacts

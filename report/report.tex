@@ -81,8 +81,8 @@
   showstringspaces=false,
 }
 
-\title{\textbf{Project--2 of ``Neural Network and Deep Learning''}\\[4pt]
-\large CIFAR--10 Classification and a Study of Batch Normalization}
+\title{\textbf{CIFAR--10 Classification and Batch Normalization}\\[4pt]
+\large Architecture, Optimization, and Diagnostic Analysis}
 \author{Yu Xinglei \quad (Student ID: 23300290012)}
 \date{June 2026}
 
@@ -90,27 +90,29 @@
 \maketitle
 
 \begin{abstract}
-This report addresses both tasks of Project~2. In Part~1, a CIFAR-adapted
-ResNet--18 baseline reaches \baseAcc\% test accuracy. Replacing it with a
-WideResNet-28-10 with \bestParams{} parameters and adding AutoAugment, Cutout,
-per-batch Mixup/CutMix, weight averaging, and test-time augmentation raises the
-best test accuracy to \textbf{\bestAcc\%}, or \bestErr\% error. Controlled
-ConvNet ablations then separate the effects of optional architecture choices,
+We study CIFAR--10 classification through two complementary questions:
+how far accuracy can be improved with modern convolutional recipes, and how
+Batch Normalization (BN) changes the resulting optimization problem. A
+CIFAR-adapted ResNet--18 baseline reaches \baseAcc\% test accuracy. Replacing
+it with a \bestParams{}-parameter WideResNet--28--10 and adding AutoAugment,
+Cutout, per-batch Mixup/CutMix, weight averaging, and test-time augmentation
+raises the best test accuracy to \textbf{\bestAcc\%}, or \bestErr\% error.
+Controlled ConvNet ablations isolate the effects of architecture choices,
 training regularization, width, activation function, loss, and optimizer. We
-also implement SGD with Nesterov momentum and Adam from scratch: both match
-PyTorch's built-in updates to numerical precision, and the hand-written SGD
-trains the full ResNet to \manualAcc\%. A ConvNet rebuilt only from raw tensor
-operations reaches \manualNetAcc\%. In Part~2, adding Batch Normalization to
+also implement SGD with Nesterov momentum and Adam manually: both match the
+corresponding PyTorch updates to numerical precision, and the manual SGD
+optimizer trains the full ResNet to \manualAcc\%. A ConvNet implemented only
+from raw tensor operations reaches \manualNetAcc\%. For BN, adding BN to
 VGG--A improves validation accuracy from \bnStdAcc\% to \bnBnAcc\%. The
-loss-band and gradient-predictiveness measurements further support the
-interpretation of \citet{santurkar2018how}: Batch Normalization makes the
-optimization landscape smoother and the gradients more reliable after each
-update. Overall, the report emphasizes not only the best achieved accuracy but
-also the cost, implementation evidence, and failure modes behind that number.
+loss-band and gradient-predictiveness measurements support the interpretation
+of \citet{santurkar2018how}: BN makes the local optimization landscape smoother
+and the gradients more reliable after each update. The analysis reports not
+only peak accuracy, but also computational cost, implementation evidence, and
+diagnostics explaining the observed gains.
 
 \smallskip
-\noindent\textbf{Code:} \url{https://github.com/spoil-ed/Neural-Network-and-Deep-Learning-PJ2} \\
-\noindent\textbf{Model weights \& dataset:} \url{https://drive.google.com/[your-link]}
+\noindent\textbf{Artifacts:} \href{https://github.com/spoil-ed/Neural-Network-and-Deep-Learning-PJ2}{code} and
+\href{https://www.modelscope.cn/models/imspoiled/Neural-Network-and-Deep-Learning-PJ2-Checkpoin}{model checkpoint}.
 \end{abstract}
 
 % ============================================================================
@@ -121,28 +123,28 @@ experiments but still sensitive to architecture, optimization, and
 regularization choices. This makes it a useful testbed for two linked goals:
 maximizing classification accuracy under controlled comparisons, and explaining
 why Batch Normalization (BN)~\citep{ioffe2015batch} improves optimization.
-Part~1 implements networks that include the required fully connected,
-convolution, pooling, and activation layers, then adds optional components such
-as BN, dropout, and residual connections. Part~2 isolates BN on VGG--A and
-reproduces the loss-landscape analysis of \citet{santurkar2018how}.
+We first implement networks with fully connected, convolution, pooling, and
+activation layers, then study additional components such as BN, dropout, and
+residual connections. We then isolate BN on VGG--A and reproduce the
+loss-landscape analysis of \citet{santurkar2018how}.
 
 The report is organized around four evaluation axes. First, we measure raw
 classification performance. Second, we track parameter count and training time
 so that a higher score is not confused with a free improvement. Third, we use
 controlled ablations to attribute each gain to a specific design choice.
-Fourth, we add visual diagnostics that reveal class-level errors, representation
-separability, and optimization geometry.
+Fourth, we add visual diagnostics that reveal representation separability and
+optimization geometry.
 
 Our main results are as follows.
 \begin{itemize}
   \item \textbf{Strong classification accuracy.} A CIFAR-adapted ResNet--18
-        baseline reaches \baseAcc\%; combining a WideResNet-28-10 with strong
+        baseline reaches \baseAcc\%; combining a WideResNet--28--10 with strong
         augmentation, Mixup and CutMix, weight averaging, and test-time
         augmentation raises the best test accuracy to \textbf{\bestAcc\%}.
   \item \textbf{Controlled ablations.} On a configurable VGG-style ConvNet we
-        vary one factor at a time across optional architecture choices,
+        vary one factor at a time across architecture choices,
         training regularizers, width, activation, loss, and optimizer choice.
-  \item \textbf{Optimizers and a network from scratch.} Hand-written SGD (with
+  \item \textbf{Manual optimizers and raw-tensor network.} Manual SGD (with
         Nesterov momentum) and Adam reproduce their built-in PyTorch
         counterparts to six decimal places on a fixed validation problem and
         train the full ResNet--18 to \textbf{\manualAcc\%}; a further ConvNet
@@ -154,31 +156,32 @@ Our main results are as follows.
 \end{itemize}
 
 % ============================================================================
-\section{Part 1: Training a Network on CIFAR-10}
+\section{CIFAR--10 Classification}
 \label{sec:part1}
 % ============================================================================
 
-\subsection{Scoring Perspective: Accuracy, Efficiency, and Originality}
+\subsection{Experimental Overview}
 \label{sec:part1score}
 
-Table~\ref{tab:part1score} summarizes the Part~1 evidence in the same terms as
-the grading rubric: classification accuracy, parameter count, training speed,
-network structure, and implementation originality. The headline WRN result is
-used for final accuracy, but the smaller models are retained because they show
-where the accuracy comes from and how much it costs. No pretrained public model
-is used directly: the ResNet stem is adapted to CIFAR--10, all models are
-trained from scratch, the ablation ConvNet is configurable, and the optimizer
-and raw-tensor ConvNet implementations provide independent implementation
-evidence beyond calling high-level library components.
+Table~\ref{tab:part1score} summarizes the main CIFAR--10 experiments in terms
+of accuracy, parameter count, training speed, network structure, and
+implementation scope. The strongest WRN result is used for the final accuracy,
+but the smaller models are retained because they show where the accuracy comes
+from and how much it costs. No pretrained public model is used directly: the
+ResNet stem is adapted to CIFAR--10, all models are trained from scratch, the
+ablation ConvNet is configurable, and the manual optimizer and raw-tensor
+ConvNet implementations provide independent implementation evidence beyond
+calling high-level library components.
 This separation is important for interpretation: the strongest model answers
-``how high can we push the score?'', while the smaller and hand-written models
+``what accuracy is attainable under the strongest recipe?'', while the smaller
+and manual models
 answer ``which ingredients are responsible, and can we implement them
 ourselves?''.
 
 \paragraph{Comparison protocol.}
 We use two complementary comparison protocols. For attribution, ablations keep
 the dataset split, model family, epoch budget, optimizer, and preprocessing
-fixed while changing one factor at a time. For the headline score, we allow a
+fixed while changing one factor at a time. For the high-accuracy setting, we allow a
 larger backbone and stronger recipe, but we report parameter count and runtime
 so that the gain is interpreted together with its cost. This prevents an
 unfair reading in which a 40-epoch ConvNet ablation and a 300-epoch WRN run are
@@ -187,7 +190,7 @@ treated as if they answered the same question.
 \begin{table}[htbp]
 \centering
 \small
-\caption{Part~1 scoring summary on CIFAR--10.}
+\caption{CIFAR--10 experiment summary.}
 \label{tab:part1score}
 \begin{tabular}{lccc}
 \toprule
@@ -203,11 +206,48 @@ WRN strong & \bestParams{} & $\approx$\wrnEpochTime{} &
 \end{tabular}
 \end{table}
 
-\subsection{Required Components: A Configurable ConvNet}
+\begin{table}[htbp]
+\centering
+\small
+\caption{Core components of the main models used in the experiments.}
+\label{tab:modelcomponents}
+\begin{tabularx}{\textwidth}{l>{\raggedright\arraybackslash}p{0.31\textwidth}X}
+\toprule
+Model & Core components & Purpose in the report \\
+\midrule
+Configurable ConvNet &
+$3\times3$ convolutions, BN or GroupNorm, ReLU-family activations,
+$2\times2$ pooling, dropout, fully connected classifier &
+Controlled ablations: width, activation, normalization, pooling, depth,
+regularization, and optimizer choice. \\
+ResNet--18 &
+CIFAR $3\times3$ stem, four residual stages, BasicBlock shortcuts, BN,
+global average pooling, linear classifier &
+Strong baseline that demonstrates the benefit of residual learning and BN
+without the much larger WRN capacity. \\
+WideResNet--28--10 &
+Pre-activation residual blocks, widen factor 10, BN, strong augmentation,
+Mixup/CutMix, EMA, TTA &
+High-accuracy model used for the best CIFAR--10 result. \\
+Raw-tensor ConvNet &
+Manual im2col convolution, manual max-pooling, manual ReLU, matrix-product
+classifier, log-sum-exp cross entropy &
+Evidence that core network operations can be implemented from tensor
+primitives rather than high-level neural-network layers. \\
+VGG--A / VGG--A+BN &
+Five VGG convolutional stages, max-pooling, three-layer classifier; the BN
+variant inserts BN after every convolution before ReLU &
+BN comparison for measuring how BatchNorm changes accuracy, loss bands,
+and gradient predictiveness. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Configurable ConvNet}
 \label{sec:arch}
 
 \paragraph{Architecture.} The base network is a compact, fully configurable
-VGG-style ConvNet containing exactly the four \emph{required} components: 2D
+VGG-style ConvNet containing the four core components: 2D
 convolutions ($3\times3$), $2\times2$ max-pooling after each
 stage, fully connected classifier layers, and non-linear activations.
 Concretely, the network stacks four convolutional stages with 64, 128, 256,
@@ -225,46 +265,45 @@ ablation changes exactly one factor.
 Appendix~\ref{sec:settings}, the ConvNet at its default width reaches
 \textbf{90.91\%} test accuracy, and doubling the width raises this to
 \textbf{\convAcc\%} as detailed in Table~\ref{tab:width}. A network built from
-only the four required components is thus already a solid CIFAR--10
-classifier; the following sections quantify what each optional component and
+only these four core components is already a competitive CIFAR--10
+classifier; the following sections quantify what each additional component and
 optimization strategy adds on top.
 
-\subsection{Optional Components: Architecture and Training Choices}
+\subsection{Architecture and Training Ablations}
 \label{sec:optional}
 
 \paragraph{Architectural options.} The ConvNet above already realizes two of the
-architectural optional components, since BatchNorm follows every convolution
+architectural components, since BatchNorm follows every convolution
 and dropout acts in the classifier. To add the third, \emph{residual
 connections}, we use
 a CIFAR-adapted ResNet--18~\citep{he2016deep} with $11.2$M parameters: the
 ImageNet stem is replaced by a single $3\times3$ convolution, the initial
 max-pooling is removed, and four stages of two BasicBlocks each are followed
-by global average pooling and a linear classifier. For the final accuracy push
-we further use a WideResNet-28-10~\citep{zagoruyko2016wide}, a pre-activation
+by global average pooling and a linear classifier. For the final accuracy study
+we further use a WideResNet--28--10~\citep{zagoruyko2016wide}, a pre-activation
 residual network with 28 layers, a widen factor of 10, and $36.5$M parameters,
 which trades depth for width.
 
-\paragraph{Architecture ablation.} To isolate optional architecture choices we
+\paragraph{Architecture ablation.} To isolate architecture choices we
 train the same ConvNet for 40 epochs while changing one design choice at a
-time: normalization, pooling, depth, classifier width, convolutional dropout,
-and the combination of BatchNorm, residual shortcuts, and classifier dropout.
-The upper block of Table~\ref{tab:optional} reports the results. The strongest
+time. Table~\ref{tab:optional} reports only the most informative comparisons
+rather than every variant: the baseline, removing normalization, adding depth,
+and combining BN with residual shortcuts and dropout. The strongest
 architectural option is additional depth, which raises accuracy to
-\textbf{93.08\%}. BatchNorm remains useful: removing normalization drops the
-result to $90.05\%$, and GroupNorm does not match BN in this setup. Changing
-only the classifier width has little effect, while the combined
-BN+Residual+Dropout variant improves over the baseline but does not beat the
-deeper plain-stage model. This suggests that, for this medium-sized ConvNet,
-extra representational depth is more valuable than simply stacking several
-regularizing modules, whose benefits can overlap or partially cancel when the
-training budget is fixed.
+\textbf{93.08\%}. BatchNorm remains useful because removing normalization drops
+the result to $90.05\%$. The combined BN+Residual+Dropout variant improves over
+the baseline but does not beat the deeper plain-stage model. This suggests
+that, for this medium-sized ConvNet, extra representational depth is more
+valuable than simply stacking several regularizing modules, whose benefits can
+overlap or partially cancel when the training budget is fixed.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Optional-component ablations on the ConvNet. Architecture variants
-report parameter count; training variants keep the baseline architecture and
-vary only the recipe.}
+\caption{Key component ablations on the ConvNet. The full sweep was
+run, but the table keeps only representative comparisons that change the
+interpretation. Architecture variants report parameter count; training variants
+keep the baseline architecture and vary only the recipe.}
 \label{tab:optional}
 \begin{tabular}{llcc}
 \toprule
@@ -272,37 +311,28 @@ Block & Variant & Size / setting & Acc. (\%) \\
 \midrule
 Arch. & Baseline BN & 5.56M & 91.27 \\
 Arch. & No norm. & 5.56M & 90.05 \\
-Arch. & GroupNorm & 5.56M & 89.87 \\
-Arch. & AvgPool & 5.56M & 90.89 \\
 Arch. & Deeper & 8.69M & \textbf{93.08} \\
-Arch. & Narrow cls. & 5.03M & 91.07 \\
-Arch. & Wide cls. & 6.61M & 91.08 \\
-Arch. & Conv dropout & 5.56M & 90.98 \\
 Arch. & BN+Res+Drop & 5.73M & 91.50 \\
 \addlinespace
 Train & Crop+flip & cosine LR & 91.27 \\
 Train & No aug. & -- & 86.46 \\
-Train & Cutout & erase & 91.44 \\
-Train & No WD & -- & 89.66 \\
 Train & Label smooth & 0.1 & \textbf{91.74} \\
-Train & Step LR & -- & 90.86 \\
 Train & Const. LR & -- & 85.60 \\
 Train & Combined & Cutout+Drop+LS & 91.60 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Training-side optional choices.} The report requirement also asks
-for comparing optional training choices, not only optional modules. We
-therefore compare data augmentation, weight decay, label smoothing, and the
-learning-rate schedule under the same ConvNet protocol. The lower block of
-Table~\ref{tab:optional} shows that removing augmentation is costly
-($86.46\%$), a constant learning rate is unstable ($85.60\%$), and label
-smoothing is the best single training-side option at \textbf{91.74\%}. Cutout
-and combined regularization are also competitive. Stronger recipe-level choices
-such as AutoAugment, Mixup/CutMix, EMA, and test-time augmentation are
-evaluated separately in Section~\ref{sec:headline}, because they belong to the
-longer WRN accuracy-push setting.
+\paragraph{Training-side choices.} Besides architecture, we compare
+representative changes to data augmentation, label
+smoothing, combined regularization, and the learning-rate schedule under the
+same ConvNet protocol. Table~\ref{tab:optional} shows that removing
+augmentation is costly ($86.46\%$), a constant learning rate is unstable
+($85.60\%$), and label smoothing is the best single training-side option at
+\textbf{91.74\%}. Combined regularization is also competitive. Stronger
+recipe-level choices such as AutoAugment, Mixup/CutMix, EMA, and test-time
+augmentation are evaluated separately in Section~\ref{sec:headline}, because
+they belong to the longer WRN high-accuracy setting.
 
 This block also separates optimization failure from overfitting. Without
 augmentation, the model reaches $100\%$ final training accuracy but only
@@ -323,13 +353,13 @@ connections and BatchNorm, together with the longer schedule, lift the
 accuracy more than three points above the best width-only ConvNet at \convAcc\%.
 The individual contributions of dropout and other regularizers are isolated in
 the ablations below, and \emph{why} BatchNorm eases optimization is analyzed
-in Part~2.
+in the BN study.
 This ResNet result therefore serves as a practical middle point between the
 small interpretable ConvNet and the much larger WRN: it has enough residual
 capacity to reach high accuracy while keeping parameter count and runtime far
-below the final accuracy-push model.
+below the final high-accuracy model.
 
-\subsection{Required Optimization Strategies: Width, Activations, and Losses}
+\subsection{Width, Activation, and Loss Ablations}
 \label{sec:ablation}
 All ablations train the ConvNet for 40 epochs under identical settings and
 vary one factor at a time; the learning rate follows a cosine schedule and the
@@ -361,7 +391,7 @@ Width & Params & Best acc (\%) \\
 We compare ReLU, Leaky-ReLU, GELU, Tanh, and Sigmoid. Leaky-ReLU performs best
 at \textbf{91.34\%}, closely followed by GELU at $91.08\%$ and ReLU at
 $90.91\%$; the three are essentially tied and train fastest. The saturating
-activations fall clearly behind, with Tanh at $88.32\%$ and Sigmoid at only
+activations lag behind, with Tanh at $88.32\%$ and Sigmoid at only
 $84.39\%$, which is consistent with vanishing-gradient intuition.
 
 \paragraph{(c) Loss function and regularization.}
@@ -386,14 +416,14 @@ for classification.
 
 \paragraph{Comparing optimizers.}
 Figure~\ref{fig:optimizer} compares six optimizers on the ConvNet backbone.
-SGD with Nesterov momentum and our hand-written SGD both reach
+SGD with Nesterov momentum and the manual SGD implementation both reach
 the best accuracy of \textbf{90.91\%}; Adam follows at $90.44\%$, AdamW at
-$90.40\%$, and our hand-written Adam at $90.11\%$, while RMSprop trails at
+$90.40\%$, and the manual Adam implementation at $90.11\%$, while RMSprop trails at
 $79.64\%$. Adaptive methods converge fastest in the first few epochs, but
 well-tuned SGD matches or exceeds them by the end, and RMSprop was the least
-stable at this learning rate. Crucially, the hand-written optimizers land on
-top of their built-in PyTorch counterparts, with our hand-written SGD
-reaching \emph{exactly} the built-in SGD accuracy, as validated below.
+stable at this learning rate. The manual optimizers track their built-in
+PyTorch counterparts closely, with manual SGD matching the built-in SGD
+accuracy in this run.
 
 \begin{figure}[htbp]
 \centering
@@ -403,31 +433,31 @@ test-accuracy curves (right).}
 \label{fig:optimizer}
 \end{figure}
 
-\paragraph{Implementation from scratch.}
-For task~5(c) we implement the optimizer update rules by hand, using only raw
+\paragraph{Manual optimizer implementation.}
+We implement the optimizer update rules by hand, using only raw
 tensor operations and none of PyTorch's built-in update routines.
-Our SGD implementation covers momentum, Nesterov momentum, and $L_2$ weight
-decay; our Adam implementation covers the bias-corrected first and second
+The SGD implementation covers momentum, Nesterov momentum, and $L_2$ weight
+decay; the Adam implementation covers the bias-corrected first and second
 moments of Adam~\citep{kingma2014adam} with optional decoupled weight
-decay~\citep{loshchilov2019decoupled}. In words, our Adam update keeps
+decay~\citep{loshchilov2019decoupled}. The Adam update keeps
 exponential moving averages of the gradient and of its element-wise square,
 corrects both averages for their initialization bias, and then steps each
 parameter by the corrected average gradient divided by the square root of the
 corrected average squared gradient, with a small constant added for numerical
 stability.
 We validate against the PyTorch built-ins on a fixed problem: the loss
-trajectories \textbf{agree to six decimal places} (Table~\ref{tab:optval}).
-Trained on the full ResNet--18, our hand-written SGD reaches
+trajectories agree to six decimal places (Table~\ref{tab:optval}).
+Trained on the full ResNet--18, manual SGD reaches
 \textbf{\manualAcc\%}, matching the built-in optimizer result.
 
 \begin{table}[htbp]
 \centering
-\caption{Hand-written vs.\ built-in PyTorch optimizers: final loss on a fixed synthetic
+\caption{Manual vs.\ built-in PyTorch optimizers: final loss on a fixed synthetic
 problem (200 steps, identical initialization; WD: weight decay).}
 \label{tab:optval}
 \begin{tabular}{lccc}
 \toprule
-Update rule & Hand-written loss & Built-in loss & Largest gap \\
+Update rule & Manual loss & Built-in loss & Largest gap \\
 \midrule
 SGD (Nesterov + WD) & $4.844\times10^{-3}$ & $4.844\times10^{-3}$ & \textbf{0} \\
 Adam                & $1.437\times10^{-2}$ & $1.437\times10^{-2}$ & $7.2\times10^{-7}$ \\
@@ -437,47 +467,46 @@ AdamW (decoupled WD) & $1.435\times10^{-2}$ & $1.435\times10^{-2}$ & $7.2\times1
 \end{table}
 
 \paragraph{A network from raw tensor operations.}
-Beyond the required choice, we also complete task~5(b) and rebuild a complete
-ConvNet using only raw tensor operations, with none of PyTorch's
-neural-network layers. Convolution is implemented as patch extraction
+We also rebuild a complete ConvNet using only raw tensor operations, with none
+of PyTorch's neural-network layers. Convolution is implemented as patch extraction
 (im2col) followed by matrix multiplication, max-pooling as patch extraction
 followed by a maximum, the fully connected layers as a matrix product plus a
 bias, the activation as an elementwise maximum with zero, and the
 cross-entropy loss through the numerically stable log-sum-exp trick. A
-self-test verifies that every manual operation agrees exactly with its
+self-test verifies that every manual operation agrees with its
 PyTorch reference on random inputs. The weights are plain gradient-tracking
-tensors handed directly to the built-in SGD optimizer, as the task specifies.
+tensors handed directly to the built-in SGD optimizer.
 Because this network contains no normalization layers, early gradients are
-large and training diverges without care; with hand-written gradient
-clipping the 1.4M-parameter network trains stably and reaches
+large enough that unconstrained training can diverge; with manual gradient
+clipping, the 1.4M-parameter network trains stably and reaches
 \textbf{\manualNetAcc\%} test accuracy in 40 epochs, a few points below the
 BatchNorm-equipped ConvNet of Section~\ref{sec:arch}, in line with the BN
-analysis of Part~2.
+analysis below.
 
-\subsection{Pushing the Classification Performance: From 95\% to 98\%}
+\subsection{Strong Training Recipe}
 \label{sec:headline}
 
 \paragraph{Recipe.} Starting from the ResNet--18 baseline, we add a stronger
-training recipe to maximize accuracy. First, we use heavier data augmentation
-that combines the CIFAR-10 AutoAugment policy~\citep{cubuk2019autoaugment}
+training recipe. First, we use heavier data augmentation that combines the
+CIFAR--10 AutoAugment policy~\citep{cubuk2019autoaugment}
 with Cutout-style random erasing. Second, we apply
 Mixup~\citep{zhang2018mixup} and CutMix~\citep{yun2019cutmix} per batch.
 Third, we maintain an exponential moving average of the weights. Fourth, we
 warm the learning rate up for five epochs before the cosine decay. Finally,
 we evaluate with horizontal-flip test-time augmentation.
 
-\paragraph{Results.} We sweep this recipe over ResNet-18 and WideResNet-28-10
+\paragraph{Results.} We sweep this recipe over ResNet--18 and WideResNet--28--10
 \citep{zagoruyko2016wide} for 200 and 300 epochs; Table~\ref{tab:strong} and
 Figure~\ref{fig:strong} summarize the sweep. The best model,
-\textbf{WideResNet-28-10 with Mixup and CutMix trained for 300 epochs, reaches
+\textbf{WideResNet--28--10 with Mixup and CutMix trained for 300 epochs reaches
 \bestAcc\% at a test error of \bestErr\%}, a gain of $2.7$ points over the
 baseline. Mixup helps most at the longer schedule, where it lifts the accuracy
 from $97.43\%$ to $98.02\%$; this is expected because Mixup slows early
-convergence. Even the small ResNet-18 climbs from $95.34\%$ to $96.96\%$ under
-the same recipe. Training remains cheap: the WRN-28-10 runs at roughly 15
+convergence. Even the small ResNet--18 climbs from $95.34\%$ to $96.96\%$ under
+the same recipe. Training remains practical: the WRN--28--10 runs at roughly 15
 seconds per epoch on a single H100, so a full 300-epoch run takes about 75
 minutes, and every configuration in the sweep fits on one GPU.
-The table also shows that stronger evaluation tricks are not automatically
+The table also shows that stronger evaluation procedures are not automatically
 helpful: the winning WRN obtains $98.02\%$ from the EMA model, while horizontal
 flip TTA gives $98.00\%$. We therefore report the best measured test accuracy
 rather than assuming that every added inference-time augmentation improves the
@@ -485,17 +514,17 @@ model.
 
 \begin{table}[htbp]
 \centering
-\caption{Accuracy-push sweep. CO denotes Cutout; CM denotes CutMix.}
+\caption{High-accuracy recipe sweep. CO denotes Cutout; CM denotes CutMix.}
 \label{tab:strong}
 \begin{tabular}{llccc}
 \toprule
 Model & Recipe & Epochs & Best (\%) & + TTA (\%) \\
 \midrule
-ResNet-18      & AA+CO+Mix    & 300 & 96.92 & 96.96 \\
-WRN-28-10      & AA+CO        & 200 & 97.30 & 97.38 \\
-WRN-28-10      & AA+CO        & 300 & 97.43 & 97.54 \\
-WRN-28-10      & AA+CO+Mix/CM & 200 & 97.56 & 97.73 \\
-\textbf{WRN-28-10} & \textbf{AA+CO+Mix/CM} & \textbf{300} & \textbf{98.02} & 98.00 \\
+ResNet--18      & AA+CO+Mix    & 300 & 96.92 & 96.96 \\
+WRN--28--10      & AA+CO        & 200 & 97.30 & 97.38 \\
+WRN--28--10      & AA+CO        & 300 & 97.43 & 97.54 \\
+WRN--28--10      & AA+CO+Mix/CM & 200 & 97.56 & 97.73 \\
+\textbf{WRN--28--10} & \textbf{AA+CO+Mix/CM} & \textbf{300} & \textbf{98.02} & 98.00 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -503,48 +532,33 @@ WRN-28-10      & AA+CO+Mix/CM & 200 & 97.56 & 97.73 \\
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.95\textwidth]{strong_results.pdf}
-\caption{Left: best test accuracy of the five accuracy-push configurations vs.\
-the ResNet-18 baseline ($95.34\%$, dashed). Right: training curves of the winning
-WRN-28-10; the EMA weights (orange) lead the raw model and reach $98.02\%$.}
+\caption{Left: best test accuracy of the five high-accuracy configurations vs.\
+the ResNet--18 baseline ($95.34\%$, dashed). Right: training curves of the winning
+WRN--28--10; the EMA weights (orange) lead the raw model and reach $98.02\%$.}
 \label{fig:strong}
 \end{figure}
 
 \subsection{Model Insights and Visualization}
 \label{sec:insight}
-We close Part~1 with diagnostics on the headline WRN-28-10
+We close the CIFAR--10 study with diagnostics on the strongest WRN--28--10
 (Figure~\ref{fig:insight}). These views are not another accuracy comparison:
-they explain what the best model has learned and where it still fails. The
-confusion matrix and per-class bars show that the remaining errors are
-structured rather than random. The hardest class is \emph{cat} at $94.6\%$,
-and most mistakes occur between visually similar animal classes, especially
-\emph{cat} and \emph{dog}. The t-SNE embedding of the $640$-d penultimate
+they explain what the best model has learned from representation and
+optimization perspectives. The t-SNE embedding of the $640$-d penultimate
 features forms ten mostly separated clusters, indicating that the classifier
-learns a discriminative representation before the final linear layer. Finally,
-the filter-normalized 2D loss surface~\citep{li2018visualizing} around the
-trained solution is broad and smooth, which is consistent with the strong
+learns a discriminative representation before the final linear layer. The
+filter-normalized 2D loss surface~\citep{li2018visualizing} around the trained
+solution is broad and smooth, which is consistent with the strong
 generalization of the EMA-averaged WRN.
-Together, these diagnostics give a more conservative interpretation of the
-$98.02\%$ result: the model is not merely fitting the training set, because its
-representation separates most semantic classes and its remaining mistakes are
-concentrated in genuinely ambiguous visual categories. The visualizations also
-help connect Part~1 and Part~2: both the WRN loss surface and the BN
+Together, these diagnostics support a conservative interpretation of the
+$98.02\%$ result: the model learns a representation that separates most
+semantic classes, and the trained solution lies in a broad local basin. The
+visualizations also connect the classification and BN studies:
+both the WRN loss surface and the BN
 smoothness study point to broad, stable regions of the objective as a useful
 property for generalization and optimization.
 
 \begin{figure}[htbp]
 \centering
-\begin{subfigure}[t]{0.48\textwidth}
-\centering
-\includegraphics[width=\linewidth]{confusion.pdf}
-\caption{Confusion matrix.}
-\end{subfigure}\hfill
-\begin{subfigure}[t]{0.48\textwidth}
-\centering
-\includegraphics[width=\linewidth]{per_class.pdf}
-\caption{Per-class accuracy.}
-\end{subfigure}
-
-\vspace{4pt}
 \begin{subfigure}[t]{0.48\textwidth}
 \centering
 \includegraphics[width=\linewidth]{tsne.pdf}
@@ -555,29 +569,30 @@ property for generalization and optimization.
 \includegraphics[width=\linewidth]{loss_surface.pdf}
 \caption{Filter-normalized loss surface.}
 \end{subfigure}
-\caption{Insightful diagnostics for the best Part~1 model. The diagnostics
-show class-level failure modes, feature separability, and local loss geometry
-without repeating the ablation comparisons.}
+\caption{Diagnostics for the best CIFAR--10 model. The diagnostics
+show feature separability and local loss geometry without repeating the
+ablation comparisons.}
 \label{fig:insight}
 \end{figure}
 
 % ============================================================================
-\section{Part 2: Batch Normalization}
+\section{Batch Normalization Study}
 \label{sec:part2}
 % ============================================================================
 
-\subsection{Task Requirements and Evidence}
+\subsection{Evaluation Setup}
 \label{sec:bnscore}
-Part~2 has two goals: first, test whether BN improves the training behavior of
-VGG--A; second, explain \emph{how} BN changes the optimization problem. We
+The BN study has two goals: first, test whether BN improves the training
+behavior of VGG--A; second, explain \emph{how} BN changes the optimization
+problem. We
 therefore separate the evidence into effectiveness and mechanism rather than
 only reporting a final accuracy number. Table~\ref{tab:bnscore} summarizes the
-mapping from the assignment requirements to our implementation and figures.
+mapping from the experimental questions to the implementation and figures.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Part~2 requirement-to-evidence summary.}
+\caption{BN study evidence summary.}
 \label{tab:bnscore}
 \begin{tabular}{lll}
 \toprule
@@ -605,7 +620,7 @@ O_{b,c,x,y}
 &= \frac{1}{BHW}\sum_{b,x,y} (I_{b,c,x,y}-\mu_c)^2 .
 \end{aligned}
 \end{equation}
-Here $B$, $H$, and $W$ denote the batch and spatial dimensions. In words, each
+Here $B$, $H$, and $W$ denote the batch and spatial dimensions. Each
 channel is standardized to zero mean and unit variance, then rescaled and
 shifted by learned per-channel parameters ($\gamma_c$ and $\beta_c$). At test
 time the batch statistics are replaced by running estimates collected during
@@ -617,9 +632,9 @@ scale or offset. Thus BN changes the parameterization and conditioning of the
 optimization problem without forcing every hidden feature to remain permanently
 zero-centered and unit-variance.
 
-\subsection{VGG-A With and Without BN}
+\subsection{VGG--A With and Without BN}
 \label{sec:vggbn}
-We train both networks on CIFAR-10 with Adam. BN both \emph{accelerates}
+We train both networks on CIFAR--10 with Adam. BN both \emph{accelerates}
 optimization and \emph{improves} final accuracy: the best validation accuracy
 rises from \bnStdAcc\% to \textbf{\bnBnAcc\%}, a gain of
 \textbf{\bnGain{} points}. The BN model also maintains a lower and smoother
@@ -636,7 +651,7 @@ effect.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.92\textwidth]{bn_vgg_comparison.pdf}
-\caption{VGG-A vs.\ VGG-A+BN (Adam, lr $10^{-3}$): training loss (left) and
+\caption{VGG--A vs.\ VGG--A+BN (Adam, lr $10^{-3}$): training loss (left) and
 validation accuracy (right). BN converges faster and higher.}
 \label{fig:vggcmp}
 \end{figure}
@@ -681,14 +696,15 @@ range of usable step sizes.
 For each model we train at a single learning rate and, at every step, move along
 the gradient direction by a range of step sizes, measuring how far the gradient
 at the new point has drifted from the gradient before the step, as shown in
-the right panel of Figure~\ref{fig:bnsmooth}. Smaller and tighter values mean that the gradient
-computed now remains accurate after the step is taken, that is, the gradients
-are more predictive. The standard VGG-A band reaches a 90th-percentile
-maximum gradient change of \bnGradStd{} versus only \textbf{\bnGradBn} for VGG-A+BN,
+the right panel of Figure~\ref{fig:bnsmooth}. Smaller and tighter values mean
+that the gradient computed before the step remains accurate after the step is
+taken, that is, the gradients are more predictive. The standard VGG--A band
+reaches a 90th-percentile maximum gradient change of \bnGradStd{} versus only
+\textbf{\bnGradBn} for VGG--A+BN,
 which corresponds to measure~3, the maximum difference in gradient over the
 distance. BN keeps this quantity smaller throughout training, indicating a
 better-behaved problem with a smaller effective smoothness constant, which is
-exactly why larger and more aggressive steps remain stable.
+why larger and more aggressive steps remain stable in this setting.
 This interpretation is deliberately local: it explains the observed training
 trajectory rather than claiming a global guarantee for all parameter
 directions. It is nevertheless useful because SGD and Adam only ever see local
@@ -707,9 +723,9 @@ optimization has a more reliable signal.
 \includegraphics[width=\linewidth]{bn_grad_predictiveness.pdf}
 \caption{Gradient drift after finite steps.}
 \end{subfigure}
-\caption{Two views of BN's smoothing effect on VGG-A. Tighter and lower bands
+\caption{Two views of BN's smoothing effect on VGG--A. Tighter and lower bands
 mean a better-behaved optimization problem; BN (orange) is consistently smoother
-than the standard VGG-A (green).}
+than the standard VGG--A (green).}
 \label{fig:bnsmooth}
 \end{figure}
 
@@ -723,21 +739,21 @@ The experiments show a clear trade-off. The raw-tensor ConvNet is the smallest
 and most transparent implementation but stops at \manualNetAcc\%. The
 CIFAR-adapted ResNet--18 is a strong practical baseline: it reaches
 \baseAcc\% with \baseParams{} parameters and a short per-epoch runtime. The
-WRN-28-10 pushes the score to \bestAcc\%, but it uses more than three times as
+WRN--28--10 pushes the score to \bestAcc\%, but it uses more than three times as
 many parameters as ResNet--18 and a longer 300-epoch recipe. In a deployment
 setting, the ResNet would be the balanced choice; in a leaderboard-style
 setting, the WRN is justified by the final error reduction.
 
 \paragraph{What explains the gains.}
-Across Part~1, the largest improvements come from mechanisms that either
+In the classification study, the largest improvements come from mechanisms that either
 increase useful capacity or improve generalization: deeper convolutional stages,
 residual networks, stronger data augmentation, label smoothing, Mixup/CutMix,
-and EMA. Across Part~2, BN improves the same training pipeline with almost no
+and EMA. In the BN study, BN improves the same training pipeline with almost no
 extra learned parameters, and the loss/gradient diagnostics explain why: the
 local objective changes more smoothly, so gradient-based updates remain
 reliable over a wider range of step sizes. These two views are consistent: the
 best classifier combines capacity, regularization, and smoother optimization
-rather than relying on a single trick.
+rather than relying on a single isolated change.
 
 \begin{table}[htbp]
 \centering
@@ -771,22 +787,22 @@ larger-resolution datasets.
 % ============================================================================
 \section{Conclusion}
 % ============================================================================
-On CIFAR-10, the ResNet--18 baseline reaches $95.34\%$, while a WideResNet-28-10
+On CIFAR--10, the ResNet--18 baseline reaches $95.34\%$, while a WideResNet--28--10
 trained with AutoAugment, Cutout, Mixup/CutMix, weight averaging, and test-time
 augmentation reaches \textbf{\bestAcc\%}, or \bestErr\% error. The ablations
-show that depth is the strongest optional architecture change in the ConvNet,
+show that depth is the strongest architecture change in the ConvNet,
 training regularization is most useful through augmentation and label
 smoothing, width helps with diminishing returns, the ReLU family beats
 saturating activations, and well-tuned SGD remains competitive with adaptive
-methods. The from-scratch optimizers reproduce PyTorch's updates and train the
-full model, and the raw-tensor ConvNet reaches \manualNetAcc\%. For Batch
-Normalization, adding BN to VGG-A both improves accuracy and produces tighter
+methods. The manual optimizers reproduce PyTorch's updates and train the full
+model, and the raw-tensor ConvNet reaches \manualNetAcc\%. For Batch
+Normalization, adding BN to VGG--A both improves accuracy and produces tighter
 loss and gradient-drift bands, supporting the view that BN helps by smoothing
 the optimization landscape. The practical implication is that high CIFAR--10
 accuracy is not only a matter of choosing a large backbone: reliable gains come
 from matching model capacity, regularization, optimizer behavior, and diagnostic
 evidence. The main remaining caveat is statistical robustness, since the report
-prioritizes broad coverage of required experiments over repeated-seed
+prioritizes broad experimental coverage over repeated-seed
 confidence intervals.
 
 \bibliographystyle{plainnat}
@@ -801,19 +817,19 @@ confidence intervals.
 CIFAR--10~\citep{krizhevsky2009learning} contains 60{,}000 $32\times32$ RGB
 images in 10 classes (50{,}000 train / 10{,}000 test). All inputs are normalized
 with the per-channel training means (0.4914, 0.4822, 0.4465) and standard
-deviations (0.2470, 0.2435, 0.2616). For training in Part~1 we apply standard
+deviations (0.2470, 0.2435, 0.2616). For CIFAR--10 training we apply standard
 augmentation---4-pixel reflection padding with random $32\times32$ crop and
-random horizontal flip; the accuracy-push recipe
+random horizontal flip; the high-accuracy recipe
 additionally uses AutoAugment, Cutout-style random erasing, and Mixup/CutMix.
-Part~2 uses the same dataset with the course-provided VGG loaders.
+The BN study uses the same dataset with the VGG data loaders.
 
 \paragraph{Training configuration.}
 Unless noted otherwise, models are trained with a batch size of 128 and a
-cosine-annealed learning rate. Part~1 baselines use SGD with Nesterov momentum
-0.9 and weight decay $5\times10^{-4}$; the ablations train for 40 epochs under
-identical settings and vary exactly one factor at a time. Part~2 trains VGG--A
-and its BN variant with Adam (lr $10^{-3}$); the landscape analysis sweeps the
-learning-rate grid reported there.
+cosine-annealed learning rate. CIFAR--10 baselines use SGD with Nesterov
+momentum 0.9 and weight decay $5\times10^{-4}$; the ablations train for 40
+epochs under identical settings and vary exactly one factor at a time. The BN
+study trains VGG--A and its BN variant with Adam (lr $10^{-3}$); the landscape
+analysis sweeps the learning-rate grid reported there.
 
 \paragraph{Hardware and software.}
 All experiments use PyTorch on a single NVIDIA~H100 GPU with automatic mixed
@@ -821,10 +837,57 @@ precision (bfloat16). Per-epoch training times are reported alongside the
 corresponding results.
 
 \paragraph{Evaluation.}
-Part~1 reports the best test accuracy reached during training; where EMA weights
-or test-time augmentation are used, this is stated explicitly in the tables.
-Part~2 follows the course setup and reports validation accuracy and per-step
-training-loss statistics.
+The CIFAR--10 experiments report the best test accuracy reached during training;
+where EMA weights or test-time augmentation are used, this is stated explicitly
+in the tables.
+The BN experiments report validation accuracy and per-step training-loss
+statistics.
+
+\section{Requirement Coverage}
+\label{sec:coverage}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Mapping from the project requirements to the report evidence.}
+\label{tab:coverage}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.30\textwidth}X}
+\toprule
+Requirement & Evidence in this report \\
+\midrule
+Code, dataset, and model-weight links &
+Artifact links are given in the abstract; CIFAR--10 download and checkpoint
+locations are documented in Appendix~\ref{sec:settings}. \\
+Best CIFAR--10 test error &
+WideResNet--28--10 reaches \bestAcc\% accuracy, i.e. \bestErr\% error
+(Table~\ref{tab:strong}). \\
+Core layers: fully connected, convolution, pooling, activation &
+The configurable ConvNet contains all four components
+(Section~\ref{sec:arch}); the raw-tensor ConvNet implements them manually
+(Section~\ref{sec:manualopt}). \\
+Additional components: BN, dropout, residual connections &
+BN and dropout are included in the ConvNet; residual connections are evaluated
+through ResNet--18 and WRN--28--10
+(Sections~\ref{sec:optional}--\ref{sec:headline}). \\
+Filters/neurons, losses, activations &
+Width, activation, and loss/regularization ablations are reported in
+Section~\ref{sec:ablation}. \\
+Optimizer strategy and manual implementation &
+Built-in optimizers are compared, manual SGD/Adam are validated against
+PyTorch, and manual SGD trains the full ResNet--18
+(Section~\ref{sec:manualopt}). \\
+Network insight or visualization &
+t-SNE feature embeddings and a filter-normalized loss surface are reported in
+Section~\ref{sec:insight}. \\
+VGG--A with and without BN &
+Validation accuracy, training loss, parameter count, and runtime are compared
+in Section~\ref{sec:vggbn}. \\
+BN optimization analysis &
+Learning-rate loss bands and gradient predictiveness are measured in
+Section~\ref{sec:landscape}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \section{Reproducibility}
 \label{sec:repro}
